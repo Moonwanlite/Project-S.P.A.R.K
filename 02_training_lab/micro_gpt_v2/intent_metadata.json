@@ -1,0 +1,15 @@
+{
+  "decision_to_id": {
+    "CLARIFY": 0,
+    "PLAN": 1,
+    "QUERY": 2,
+    "REJECT": 3
+  },
+  "id_to_decision": {
+    "0": "CLARIFY",
+    "1": "PLAN",
+    "2": "QUERY",
+    "3": "REJECT"
+  },
+  "max_len": 64
+}

@@ -1,0 +1,17 @@
+{
+  "label_to_id": {
+    "B-LOC": 0,
+    "B-OBJ": 1,
+    "I-LOC": 2,
+    "I-OBJ": 3,
+    "O": 4
+  },
+  "id_to_label": {
+    "0": "B-LOC",
+    "1": "B-OBJ",
+    "2": "I-LOC",
+    "3": "I-OBJ",
+    "4": "O"
+  },
+  "max_len": 64
+}

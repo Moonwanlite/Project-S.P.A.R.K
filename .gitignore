@@ -1,0 +1,25 @@
+# Python virtual environments
+mobile_manip_env/
+venv/
+env/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# TensorFlow models (optional if large)
+*.h5
+*.ckpt
