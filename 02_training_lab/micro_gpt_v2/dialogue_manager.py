@@ -3,12 +3,12 @@ class DialogueManager:
         self.last_object = None
         self.last_location = None
         self.last_decision = None
+        self.last_adj = None
 
     def resolve(self, text):
         """
         Basic resolution layer.
-        Here we could add coreference or spelling correction later.
-        For now we simply pass through.
+        Later we can plug in spell correction here.
         """
         return text.strip().lower()
 
@@ -23,26 +23,72 @@ class DialogueManager:
         if frame.get("location"):
             self.last_location = frame["location"]
 
+        if frame.get("adjectives"):
+            self.last_adj = frame["adjectives"][0]
+
         self.last_decision = frame.get("decision")
 
     def generate_reply(self, frame):
+
         decision = frame.get("decision")
         obj = frame.get("object")
         loc = frame.get("location")
+        adjs = frame.get("adjectives", [])
 
         # ===================================================
-        # QUERY HANDLING (NEW FEATURE)
+        # QUERY HANDLING (STATUS QUESTIONS)
         # ===================================================
 
         if decision == "QUERY":
-            return self.handle_query()
+            return {
+                "agent": "system",
+                "text": self.handle_query()
+            }
 
         # ===================================================
-        # PLAN HANDLING
+        # PLAN HANDLING WITH SMART QUESTIONING
         # ===================================================
 
         if decision == "PLAN":
-            return "Executing your request."
+
+            # ---- NEW: adjective present but no object ----
+            if adjs and not obj:
+                adj = adjs[0]
+                self.last_adj = adj
+
+                return {
+                    "agent": "manipulator",
+                    "text": f"Which {adj} object should I pick up?"
+                }
+
+            # ---- object missing but location present ----
+            if not obj and loc:
+                return {
+                    "agent": "manipulator",
+                    "text": "What object should I pick up?"
+                }
+
+            # ---- location missing but object present ----
+            if obj and not loc:
+                self.last_object = obj
+
+                return {
+                    "agent": "mobile",
+                    "text": f"Where should I deliver the {obj}?"
+                }
+
+            # ---- both missing ----
+            if not obj and not loc:
+                return {
+                    "agent": "system",
+                    "text": "I need both an object and a destination."
+                }
+
+            # ---- all information available ----
+            return {
+                "agent": "system",
+                "text": "Executing your request."
+            }
 
         # ===================================================
         # CLARIFICATION LOGIC
@@ -59,25 +105,37 @@ class DialogueManager:
                 missing.append("location")
 
             if missing:
-                return f"I need more information about: {', '.join(missing)}"
+                return {
+                    "agent": "system",
+                    "text": f"I need more information about: {', '.join(missing)}"
+                }
 
-            return "Your request is unclear. Please rephrase."
+            return {
+                "agent": "system",
+                "text": "Your request is unclear. Please rephrase."
+            }
 
         # ===================================================
         # REJECT HANDLING
         # ===================================================
 
         if decision == "REJECT":
-            return "Sorry, I cannot perform that request."
+            return {
+                "agent": "system",
+                "text": "Sorry, I cannot perform that request."
+            }
 
         # ===================================================
         # FALLBACK
         # ===================================================
 
-        return "I did not understand that request."
+        return {
+            "agent": "system",
+            "text": "I did not understand that request."
+        }
 
     # =======================================================
-    # NEW: QUERY RESPONSE LOGIC
+    # QUERY RESPONSE LOGIC (UNCHANGED CORE IDEA)
     # =======================================================
 
     def handle_query(self):

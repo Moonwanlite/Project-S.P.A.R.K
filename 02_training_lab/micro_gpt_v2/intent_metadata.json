@@ -1,15 +1,19 @@
 {
   "decision_to_id": {
     "CLARIFY": 0,
-    "PLAN": 1,
-    "QUERY": 2,
-    "REJECT": 3
+    "PLAN_FETCH": 1,
+    "PLAN_GRAB": 2,
+    "PLAN_NAVIGATE": 3,
+    "QUERY": 4,
+    "REJECT": 5
   },
   "id_to_decision": {
     "0": "CLARIFY",
-    "1": "PLAN",
-    "2": "QUERY",
-    "3": "REJECT"
+    "1": "PLAN_FETCH",
+    "2": "PLAN_GRAB",
+    "3": "PLAN_NAVIGATE",
+    "4": "QUERY",
+    "5": "REJECT"
   },
   "max_len": 64
 }

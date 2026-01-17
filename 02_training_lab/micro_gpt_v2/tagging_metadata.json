@@ -1,17 +1,19 @@
 {
   "label_to_id": {
-    "B-LOC": 0,
-    "B-OBJ": 1,
-    "I-LOC": 2,
-    "I-OBJ": 3,
-    "O": 4
+    "B-ADJ": 0,
+    "B-LOC": 1,
+    "B-OBJ": 2,
+    "B-PRON": 3,
+    "B-QWORD": 4,
+    "O": 5
   },
   "id_to_label": {
-    "0": "B-LOC",
-    "1": "B-OBJ",
-    "2": "I-LOC",
-    "3": "I-OBJ",
-    "4": "O"
+    "0": "B-ADJ",
+    "1": "B-LOC",
+    "2": "B-OBJ",
+    "3": "B-PRON",
+    "4": "B-QWORD",
+    "5": "O"
   },
   "max_len": 64
 }

@@ -1,191 +1,139 @@
 import json
-import tensorflow as tf
 import numpy as np
+import tensorflow as tf
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.preprocessing.text import tokenizer_from_json
 
+from conversation_reasoner import ConversationReasoner
 from planner import generate_plan
-from dialogue_manager import DialogueManager
-from difflib import get_close_matches
 
+# ============================================================
+# CONFIG
+# ============================================================
 
+MAX_LEN = 64
 INTENT_MODEL_PATH = "intent_slm_model"
-TAG_MODEL_PATH = "tagging_slm_model"
+TOKENIZER_PATH = "tokenizer.json"
 
-TOKENIZER_FILE = "tokenizer.json"
-INTENT_META = "intent_metadata.json"
-TAG_META = "tagging_metadata.json"
+# ============================================================
+# LOAD MODELS
+# ============================================================
 
-INTENT_THRESHOLD = 0.65
+print("Loading models and metadata...")
 
-FUZZY_PHRASES = [
-    "status report",
-    "system report",
-    "what is the status",
-    "bring",
-    "fetch",
-    "take",
-    "deliver",
-    "grab"
+intent_model = tf.keras.models.load_model(INTENT_MODEL_PATH)
+
+with open(TOKENIZER_PATH, "r") as f:
+    tokenizer = tokenizer_from_json(f.read())
+
+# These must match what was produced in training
+INTENT_LABELS = [
+    "CLARIFY",
+    "PLAN_FETCH",
+    "PLAN_GRAB",
+    "PLAN_NAVIGATE",
+    "QUERY",
+    "REJECT"
 ]
 
+# ============================================================
+# CORE INTERPRETER
+# ============================================================
 
-
-def load_components():
-    print("Loading models and metadata...")
-
-    with open(TOKENIZER_FILE) as f:
-        tokenizer = tokenizer_from_json(f.read())
-
-    intent_model = tf.keras.models.load_model(INTENT_MODEL_PATH)
-    tag_model = tf.keras.models.load_model(TAG_MODEL_PATH)
-
-    with open(INTENT_META) as f:
-        intent_meta = json.load(f)
-
-    with open(TAG_META) as f:
-        tag_meta = json.load(f)
-
-    id_to_decision = {int(k): v for k, v in intent_meta["id_to_decision"].items()}
-    id_to_label = {int(k): v for k, v in tag_meta["id_to_label"].items()}
-
-    return tokenizer, intent_model, tag_model, intent_meta, tag_meta, id_to_decision, id_to_label
-
-
-def predict_intent(text, tokenizer, model, meta):
-
-    # Fuzzy correction for common phrases
-    match = get_close_matches(text.lower(), FUZZY_PHRASES, n=1, cutoff=0.8)
-
-    if match:
-        text = match[0]
+def interpret(text):
 
     seq = tokenizer.texts_to_sequences([text])
-    x = pad_sequences(seq, maxlen=meta["max_len"])
+    x = pad_sequences(seq, maxlen=MAX_LEN)
 
-    pred = model.predict(x, verbose=0)[0]
+    pred = intent_model.predict(x, verbose=0)[0]
 
-    confidence = float(max(pred))
-    decision_id = int(pred.argmax())
+    confidence = float(np.max(pred))
+    decision_id = int(np.argmax(pred))
 
-    return decision_id, confidence
+    decision = INTENT_LABELS[decision_id]
 
-
-def extract_slots(text, tokenizer, model, meta, id_to_label):
-    seq = tokenizer.texts_to_sequences([text])
-    x = pad_sequences(seq, maxlen=meta["max_len"])
-
-    pred = model.predict(x, verbose=0)[0]
-    tags = pred.argmax(axis=1)
-
-    words = text.lower().split()
-
-    obj = []
-    loc = []
-
-    relevant_tags = tags[-len(words):]
-
-    for i, tag_id in enumerate(relevant_tags):
-        label = id_to_label[tag_id]
-        word = words[i]
-
-        if label in ["B-OBJ", "I-OBJ"]:
-            obj.append(word)
-
-        if label in ["B-LOC", "I-LOC"]:
-            loc.append(word)
-
-    object_name = " ".join(obj) if obj else None
-    location = " ".join(loc) if loc else None
-
-    return object_name, location
-
-
-def interpret(text, tokenizer, intent_model, tag_model,
-              intent_meta, tag_meta, id_to_decision, id_to_label):
-
-    decision_id, confidence = predict_intent(
-        text, tokenizer, intent_model, intent_meta
-    )
-
-    decision = id_to_decision[decision_id]
-
-    # Thresholding logic
-    if confidence < INTENT_THRESHOLD:
-        decision = "CLARIFY"
-
-    obj, loc = extract_slots(text, tokenizer, tag_model, tag_meta, id_to_label)
-
-    return {
+    frame = {
+        "text": text,
         "decision": decision,
-        "object": obj,
-        "location": loc,
-        "confidence": confidence
+        "confidence": confidence,
+        "object": None,
+        "location": None,
+        "verb": None
     }
 
+    # Very lightweight entity extraction
+    words = text.split()
 
+    # crude object detection
+    for w in words:
+        if w in ["pen", "pencil", "cube", "eraser", "nut", "screw", "bolt"]:
+            frame["object"] = w
+
+    # crude location detection
+    for w in words:
+        if w in ["office", "desk", "cabin", "charging", "docking"]:
+            frame["location"] = w
+
+    # crude verb detection
+    for w in words:
+        if w in ["grab", "bring", "fetch", "get", "take", "go", "navigate", "move"]:
+            frame["verb"] = w
+            break
+
+    return frame
+
+
+# ============================================================
+# MAIN LOOP
+# ============================================================
 
 def main():
-    tokenizer, intent_model, tag_model, intent_meta, tag_meta, id_to_decision, id_to_label = load_components()
 
-    dialogue = DialogueManager()
+    reasoner = ConversationReasoner()
 
     print("\n--- Robot Command Interface ---")
     print("Type 'exit' to quit.\n")
 
     while True:
+
         user_input = input("User: ").strip()
 
-        if user_input.lower() == "exit":
+        if user_input.lower() in ["exit", "quit"]:
             print("Exiting system.")
             break
 
-        resolved = dialogue.resolve(user_input)
+        # Step 1 – basic normalization
+        resolved = reasoner.resolve(user_input)
         print("(Resolved):", resolved)
 
-        frame = interpret(
-            resolved,
-            tokenizer,
-            intent_model,
-            tag_model,
-            intent_meta,
-            tag_meta,
-            id_to_decision,
-            id_to_label
-        )
+        # Step 2 – interpret with SLM
+        frame = interpret(resolved)
 
         print(f"(Confidence: {frame['confidence']:.2f})")
 
-        dialogue.update_state(frame)
+        # Step 3 – apply conversation reasoning
+        frame = reasoner.postprocess(frame)
 
-        reply = dialogue.generate_reply(frame)
+        # Step 4 – update context memory
+        reasoner.update_state(frame)
+
+        # Step 5 – generate natural reply
+        reply = reasoner.generate_reply(frame)
+
         print("System Reply:", reply)
 
-        # ==========================================================
-        # HANDLE QUERY SEPARATELY (NO PLANNING NEEDED)
-        # ==========================================================
+        # Step 6 – generate plan from planner
+        plan = generate_plan(frame)
 
-        if frame["decision"] == "QUERY":
-            continue
+        print("\nPLAN OVERVIEW:")
+        print(plan["overview"])
 
-        # ==========================================================
-        # HANDLE PLAN OUTPUT
-        # ==========================================================
+        print("\nAGENT MESSAGES:")
 
-        if frame["decision"] == "PLAN":
+        for msg in plan["messages"]:
+            print(f"{msg['agent'].upper()}: {msg['text']}")
 
-            plan = generate_plan(frame)
-
-            print("\nPLAN OVERVIEW:")
-            print(plan["overview"])
-
-            print("\nAGENT MESSAGES:")
-
-            for msg in plan["messages"]:
-                print(f"{msg['agent'].upper()}: {msg['text']}")
-
-        else:
-            print("System Action:", f"SYSTEM:{frame['decision']}|NULL")
+        print()
 
 
 if __name__ == "__main__":

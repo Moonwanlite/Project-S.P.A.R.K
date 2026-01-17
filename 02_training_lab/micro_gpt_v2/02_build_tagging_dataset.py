@@ -1,95 +1,90 @@
 import json
+import random
 
-INPUT_FILE = "robot_sequences.txt"
-OUTPUT_FILE = "tagging_dataset.json"
+from generate_data import (
+    graspable_objects,
+    dropoff_zones,
+    adjectives
+)
 
+INPUT = "robot_sequences.txt"
+OUTPUT = "tagging_dataset.json"
 
-def tokenize(text):
-    return text.lower().strip().split()
+question_words = ["what", "where", "which", "how"]
+pronouns = ["it", "them", "that"]
+connectors = ["then", "after", "and"]
 
+def tag_sentence(sentence):
 
-def build_labels(tokens, obj, loc):
+    tokens = sentence.lower().split()
     labels = ["O"] * len(tokens)
 
-    obj_tokens = obj.lower().split() if obj else []
-    loc_tokens = loc.lower().split() if loc else []
+    for i, tok in enumerate(tokens):
 
-    # Label object tokens
-    for i in range(len(tokens)):
-        if obj_tokens and tokens[i:i + len(obj_tokens)] == obj_tokens:
-            labels[i] = "B-OBJ"
-            for j in range(1, len(obj_tokens)):
-                labels[i + j] = "I-OBJ"
+        # Question words
+        if tok in question_words:
+            labels[i] = "B-QWORD"
+            continue
 
-    # Label location tokens
-    for i in range(len(tokens)):
-        if loc_tokens and tokens[i:i + len(loc_tokens)] == loc_tokens:
-            labels[i] = "B-LOC"
-            for j in range(1, len(loc_tokens)):
-                labels[i + j] = "I-LOC"
+        # Pronouns
+        if tok in pronouns:
+            labels[i] = "B-PRON"
+            continue
 
-    return labels
+        # Sequencing connectors
+        if tok in connectors:
+            labels[i] = "B-CONN"
+            continue
 
+        # Location detection
+        for loc_list in dropoff_zones.values():
+            for loc in loc_list:
+                if tok == loc.split()[0]:
+                    labels[i] = "B-LOC"
 
-def parse_line(line):
-    if "<SEP>" not in line:
-        return None
+        # Object detection
+        for obj in graspable_objects:
+            if tok == obj:
+                labels[i] = "B-OBJ"
 
-    text, output = line.split("<SEP>")
-    text = text.strip().lower()
-    output = output.strip()
+        # Adjectives
+        for adj in adjectives:
+            if tok == adj:
+                labels[i] = "B-ADJ"
 
-    obj = None
-    loc = None
-
-    # Extract object from the SEARCH command
-    if "MANIPULATOR:SEARCH|" in output:
-        obj = output.split("MANIPULATOR:SEARCH|")[1].split()[0]
-        obj = obj.replace("_", " ").lower()
-
-    # --- FINAL DESTINATION EXTRACTION ---
-    # We only care about the LAST navigation command,
-    # because that represents the user-intended location.
-
-    if "MOBILE:NAVIGATE|" in output:
-        parts = output.split("MOBILE:NAVIGATE|")
-        last_target = parts[-1].split()[0]
-
-        # Ignore internal waypoints
-        if last_target != "MANIPULATOR_STATION":
-            loc = last_target.replace("_", " ").lower()
-
-    tokens = tokenize(text)
-    labels = build_labels(tokens, obj, loc)
-
-    return {
-        "tokens": tokens,
-        "labels": labels,
-        "decision": output.split()[0]
-    }
+    return tokens, labels
 
 
-def main():
-    dataset = []
+dataset = []
 
-    print("Building tagging dataset...")
+print("Building enhanced tagging dataset...")
 
-    with open(INPUT_FILE, "r", encoding="utf-8") as f:
-        for line in f:
-            parsed = parse_line(line)
-            if parsed:
-                dataset.append(parsed)
+with open(INPUT, "r", encoding="utf-8") as f:
 
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        json.dump(dataset, f, indent=2)
+    for line in f:
 
-    print(f"Tagging dataset created: {OUTPUT_FILE}")
-    print(f"Total samples: {len(dataset)}")
+        if "<SEP>" not in line:
+            continue
 
-    if dataset:
-        print("\nSample example:")
-        print(dataset[0])
+        text, output = line.split("<SEP>")
+        text = text.strip().lower()
+        output = output.strip()
+
+        tokens, labels = tag_sentence(text)
+
+        decision = output.split()[0]
+
+        dataset.append({
+            "tokens": tokens,
+            "labels": labels,
+            "decision": decision
+        })
 
 
-if __name__ == "__main__":
-    main()
+random.shuffle(dataset)
+
+with open(OUTPUT, "w") as f:
+    json.dump(dataset, f, indent=2)
+
+print("Tagging dataset created:", OUTPUT)
+print("Total samples:", len(dataset))
