@@ -1,0 +1,42 @@
+{
+  "objects": [
+    "bolt",
+    "screw",
+    "nut",
+    "cube",
+    "pen",
+    "pencil"
+  ],
+
+  "adjectives": [
+    "red",
+    "blue",
+    "green",
+    "big",
+    "small",
+    "m5",
+    "m6",
+    "black",
+    "white"
+  ],
+
+  "locations": {
+    "OFFICE": ["office", "desk", "cabin"],
+    "MANIPULATOR_STATION": ["manipulator station", "workstation"],
+    "DOCKING_STATION": ["docking station", "docking point"],
+    "CHARGING_STATION": ["charging station", "charging point"]
+  },
+
+  "verbs": {
+    "grab": ["grab", "pick", "hold"],
+    "fetch": ["bring", "fetch", "deliver", "take"],
+    "navigate": ["go", "move", "navigate"]
+  },
+
+  "queries": [
+    "status report",
+    "where are you",
+    "system status",
+    "what are you holding"
+  ]
+}
